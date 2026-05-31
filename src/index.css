@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-natural-bg: #FDFBF7;
+  --color-natural-brand: #8B5A2B;
+  --color-natural-brand-hover: #704822;
+  --color-natural-brand-dark: #5D4037;
+  --color-natural-brand-light: #F5E6D3;
+  --color-natural-brand-subtle: #FAF3EA;
+  --color-natural-border: #D2B48C;
+  --color-natural-border-light: #E6D5C3;
+  --color-natural-text-main: #4A3728;
+  --color-natural-text-head: #5D4037;
+  --color-natural-text-muted: #8B735B;
+  --color-natural-tab-active: #EFE0CD;
+  --color-natural-tab-hover: #F0E4D4;
+
+  --font-sans: "Inter", "Noto Sans TC", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Serif TC", "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: #FDFBF7;
+  background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png');
+  color: #4A3728;
+}
