@@ -1,0 +1,8 @@
+{
+  "name": "新洽記商品訂購系統",
+  "description": "提供新洽記商行頂級焙炒花生、手工花生糖等伴手禮的線上團購與訂單管理系統。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
