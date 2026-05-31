@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Customer order details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "customerAddress": { "type": "string" },
+        "notes": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["處理中", "已出貨", "已完成", "已取消"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "customerPhone", "items", "totalAmount", "status", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product catalogue item with pricing and bulk discounts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "specs": { "type": "string" },
+        "price": { "type": "number" },
+        "bulkDiscounts": { "type": "array" },
+        "image": { "type": "string" }
+      },
+      "required": ["name", "specs", "price", "bulkDiscounts"]
+    },
+    "Config": {
+      "title": "Config",
+      "description": "System configurations such as admin password",
+      "type": "object",
+      "properties": {
+        "adminPassword": { "type": "string" },
+        "isSetup": { "type": "boolean" }
+      },
+      "required": ["adminPassword", "isSetup"]
+    }
+  },
+  "firestore": {
+    "orders/{orderId}": {
+      "schema": "Order",
+      "description": "Orders submitted by customers"
+    },
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "Product menu"
+    },
+    "config/{configId}": {
+      "schema": "Config",
+      "description": "System configs"
+    }
+  }
+}
