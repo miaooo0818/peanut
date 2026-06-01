@@ -12,6 +12,7 @@ export interface Product {
   description: string;
   image: string; // placeholder description or visual indicator
   category: "peanut" | "candy" | "bag";
+  sortOrder?: number;
 }
 
 export interface CartItem {
