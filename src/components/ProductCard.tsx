@@ -50,8 +50,17 @@ export default function ProductCard({ product, quantity, onUpdateQuantity }: Pro
         </div>
 
         {/* Floating visual representation */}
-        <div className="text-6xl self-center my-2 select-none filter drop-shadow-sm transform hover:scale-105 transition-transform">
-          {product.image}
+        <div className="self-center my-2 select-none filter drop-shadow-sm transform hover:scale-105 transition-transform h-24 max-h-24 flex items-center justify-center">
+          {product.image && (product.image.startsWith("http") || product.image.includes("/") || product.image.includes(".")) ? (
+            <img
+              src={product.image}
+              alt={product.name}
+              className="max-h-full max-w-full object-contain rounded-lg shadow-xs"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="text-6xl">{product.image}</span>
+          )}
         </div>
 
         {/* Dynamic Price Tiers quick peek */}
