@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, useMemo } from "react";
+import { useState, useEffect, FormEvent, useMemo, ChangeEvent } from "react";
 import {
   checkAdminPasswordSetup,
   setupAdminPassword,
@@ -15,7 +15,7 @@ import {
   Lock, Key, LogOut, LayoutDashboard, ShoppingCart, 
   PackageCheck, Calendar, Settings, Plus, Edit2, 
   Trash2, X, Check, Save, Layers, AlertCircle, TrendingUp, Users, RefreshCw,
-  Download, FileSpreadsheet, ArrowUp, ArrowDown
+  Download, FileSpreadsheet, ArrowUp, ArrowDown, Upload, Image
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -95,8 +95,13 @@ export default function AdminPanel() {
   // Check auth status from sessionStorage on load
   useEffect(() => {
     async function checkSetup() {
-      const isConfigured = await checkAdminPasswordSetup();
-      setIsSetup(isConfigured);
+      const envPass = process.env.ADMIN_PASSWORD;
+      if (envPass) {
+        setIsSetup(true);
+      } else {
+        const isConfigured = await checkAdminPasswordSetup();
+        setIsSetup(isConfigured);
+      }
       
       const adminSession = sessionStorage.getItem("snh_admin_auth");
       if (adminSession === "true") {
@@ -158,7 +163,14 @@ export default function AdminPanel() {
     setAuthError("");
     try {
       setLoading(true);
-      const isValid = await verifyAdminPassword(passwordInput);
+      const envPass = process.env.ADMIN_PASSWORD;
+      let isValid = false;
+      if (envPass) {
+        isValid = passwordInput === envPass;
+      } else {
+        isValid = await verifyAdminPassword(passwordInput);
+      }
+
       if (isValid) {
         setIsAuthenticated(true);
         sessionStorage.setItem("snh_admin_auth", "true");
@@ -167,7 +179,7 @@ export default function AdminPanel() {
         setAuthError("管理者驗證密碼不正確！");
       }
     } catch {
-      setAuthError("連線至 Firebase 資料庫時發生錯誤！");
+      setAuthError("連線認證與資料庫時發生錯誤！");
     } finally {
       setLoading(false);
     }
@@ -213,6 +225,59 @@ export default function AdminPanel() {
       setProdTiers([]);
     }
     setIsProductModalOpen(true);
+  };
+
+  const [isCompresingImage, setIsCompressingImage] = useState(false);
+
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsCompressingImage(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 450;
+        const MAX_HEIGHT = 450;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress quality to 0.8 for nice details but fast downloads
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.82);
+          setProdFormImage(compressedBase64);
+        }
+        setIsCompressingImage(false);
+      };
+      img.onerror = () => {
+        setIsCompressingImage(false);
+        alert("不支援或損毀的圖片格式！");
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      setIsCompressingImage(false);
+      alert("讀取檔案時發生錯誤！");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveProduct = async (e: FormEvent) => {
@@ -1375,7 +1440,7 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="prod-price">
                     基本零售單價 (元)：
@@ -1405,18 +1470,83 @@ export default function AdminPanel() {
                     <option value="bag">專屬牛皮提袋</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="prod-img">
-                    商品圖片或Emoji (可為 Emoji 或 圖片網址/本機路徑)：
-                  </label>
-                  <input
-                    id="prod-img"
-                    type="text"
-                    value={prodFormImage}
-                    onChange={(e) => setProdFormImage(e.target.value)}
-                    placeholder="請輸入 Emoji (如 🥜) 或 圖片路徑"
-                    className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-850 focus:outline-hidden"
-                  />
+              </div>
+
+              {/* 商品外觀圖照管理：包含檔案上傳及雲端網址 */}
+              <div className="border border-stone-200 rounded-xl p-4 bg-stone-50/50 space-y-3">
+                <div className="flex items-center justify-between border-b border-stone-150 pb-2">
+                  <h4 className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                    <Image className="w-4 h-4 text-amber-850" />
+                    <span>商品主圖檔與外觀預覽 (可上傳本機照片、貼上雲端 URL、或使用 Emoji)</span>
+                  </h4>
+                  {isCompresingImage && (
+                    <span className="text-[11px] text-amber-850 font-bold animate-pulse flex items-center gap-1">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      處理壓縮照片中...
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  {/* 圖示預覽框 */}
+                  <div className="w-20 h-20 rounded-xl border border-stone-250 bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-xs relative group bg-stone-100">
+                    {prodFormImage && (prodFormImage.startsWith("http") || prodFormImage.includes("/") || prodFormImage.startsWith("data:image")) ? (
+                      <img
+                        src={prodFormImage}
+                        alt="Product visual outline"
+                        className="max-h-full max-w-full object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="text-4xl select-none">{prodFormImage || "🥜"}</span>
+                    )}
+                  </div>
+
+                  {/* 核心操作 */}
+                  <div className="flex-1 space-y-2.5 w-full">
+                    <div className="flex flex-wrap gap-2">
+                      <label className="px-3.5 py-1.5 bg-amber-850 hover:bg-amber-900 hover:text-white text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>選擇本機圖片上傳</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="local-image-selector"
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => setProdFormImage("🥜")}
+                        className="px-3 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      >
+                        純文字 🥜
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProdFormImage("🍬")}
+                        className="px-3 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      >
+                        純文字 🍬
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] text-stone-500 font-bold" htmlFor="prod-img">
+                        或在下方直接輸入雲端圖片網址 / 自訂 Emoji 代替：
+                      </label>
+                      <input
+                        id="prod-img"
+                        type="text"
+                        value={prodFormImage}
+                        onChange={(e) => setProdFormImage(e.target.value)}
+                        placeholder="請鍵入網路路徑或 Emoji (如 https://example.com/item.png 或 🛍️)"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-850 focus:outline-hidden font-medium"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
