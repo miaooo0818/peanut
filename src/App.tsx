@@ -19,6 +19,32 @@ export default function App() {
   // Success view tracking
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
 
+  // Simple Hidden Routing Effect for /admin
+  useEffect(() => {
+    const checkRoute = () => {
+      const pathname = window.location.pathname;
+      const hash = window.location.hash;
+      if (
+        pathname === "/admin" ||
+        pathname.endsWith("/admin") ||
+        hash === "#/admin" ||
+        hash === "#admin"
+      ) {
+        setActiveTab("admin");
+      }
+    };
+    // Run on mount
+    checkRoute();
+
+    // Listen to url navigation changes
+    window.addEventListener("popstate", checkRoute);
+    window.addEventListener("hashchange", checkRoute);
+    return () => {
+      window.removeEventListener("popstate", checkRoute);
+      window.removeEventListener("hashchange", checkRoute);
+    };
+  }, []);
+
   useEffect(() => {
     async function loadCatalog() {
       try {
