@@ -15,7 +15,7 @@ import {
   Lock, Key, LogOut, LayoutDashboard, ShoppingCart, 
   PackageCheck, Calendar, Settings, Plus, Edit2, 
   Trash2, X, Check, Save, Layers, AlertCircle, TrendingUp, Users, RefreshCw,
-  Download, FileSpreadsheet
+  Download, FileSpreadsheet, ArrowUp, ArrowDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -230,7 +230,8 @@ export default function AdminPanel() {
       description: prodFormDesc.trim(),
       category: prodFormCategory,
       image: prodFormImage,
-      bulkDiscounts: prodTiers.sort((a,b) => a.minQty - b.minQty)
+      bulkDiscounts: prodTiers.sort((a,b) => a.minQty - b.minQty),
+      sortOrder: editingProduct && editingProduct.sortOrder !== undefined ? editingProduct.sortOrder : (products.length + 1)
     };
 
     try {
@@ -241,6 +242,40 @@ export default function AdminPanel() {
       setProducts(reloadedProducts);
     } catch (err) {
       alert("儲存商品失敗！");
+    }
+  };
+
+  const handleMoveProduct = async (prodId: string, direction: "up" | "down") => {
+    const index = products.findIndex((p) => p.id === prodId);
+    if (index === -1) return;
+
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= products.length) return; // boundary check
+
+    const newProductsArray = [...products];
+    // assure all of them have proper index
+    newProductsArray.forEach((p, idx) => {
+      p.sortOrder = idx;
+    });
+
+    // swap
+    const temp = newProductsArray[index];
+    newProductsArray[index] = newProductsArray[newIndex];
+    newProductsArray[newIndex] = temp;
+
+    // fix sequential sorting indices
+    newProductsArray.forEach((p, idx) => {
+      p.sortOrder = idx;
+    });
+
+    // optimistically update view instantly
+    setProducts(newProductsArray);
+
+    try {
+      await saveProduct(newProductsArray[index]);
+      await saveProduct(newProductsArray[newIndex]);
+    } catch (err) {
+      console.error("無法儲存調整後的商品排序：", err);
     }
   };
 
@@ -1008,7 +1043,18 @@ export default function AdminPanel() {
                     
                     <div className="space-y-2">
                       <div className="flex justify-between items-start">
-                        <span className="text-3xl p-1 bg-stone-100 rounded-lg">{prod.image}</span>
+                        <span className="text-3xl p-1 bg-stone-100 rounded-lg flex items-center justify-center w-12 h-12 overflow-hidden select-none">
+                          {prod.image && (prod.image.startsWith("http") || prod.image.includes("/") || prod.image.includes(".")) ? (
+                            <img
+                              src={prod.image}
+                              alt={prod.name}
+                              className="max-h-full max-w-full object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <span>{prod.image}</span>
+                          )}
+                        </span>
                         <span className="bg-stone-100 text-stone-605 text-[10px] font-bold px-2 py-0.5 rounded">
                           {prod.category === "peanut" ? "花生" : prod.category === "candy" ? "花生糖" : "配件袋"}
                         </span>
@@ -1042,6 +1088,26 @@ export default function AdminPanel() {
                     </div>
 
                     <div className="flex gap-2 border-t border-stone-100 pt-3 mt-4">
+                      {/* 排序調整按鍵 */}
+                      <div className="flex gap-1 border border-stone-150 rounded-lg p-0.5 bg-stone-50">
+                        <button
+                          onClick={() => handleMoveProduct(prod.id, "up")}
+                          disabled={products.indexOf(prod) === 0}
+                          className="p-1 text-stone-600 hover:text-amber-850 hover:bg-stone-200/60 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-stone-600 cursor-pointer disabled:cursor-not-allowed"
+                          title="往前移動 (上移)"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveProduct(prod.id, "down")}
+                          disabled={products.indexOf(prod) === products.length - 1}
+                          className="p-1 text-stone-600 hover:text-amber-850 hover:bg-stone-200/60 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-stone-600 cursor-pointer disabled:cursor-not-allowed"
+                          title="往後移動 (下移)"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
                       <button
                         onClick={() => handleOpenProductModal(prod)}
                         className="flex-1 py-1 px-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
@@ -1341,20 +1407,16 @@ export default function AdminPanel() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="prod-img">
-                    商品展示貼圖/圖標：
+                    商品圖片或Emoji (可為 Emoji 或 圖片網址/本機路徑)：
                   </label>
-                  <select
+                  <input
                     id="prod-img"
+                    type="text"
                     value={prodFormImage}
                     onChange={(e) => setProdFormImage(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-850"
-                  >
-                    <option value="🥜">🥜 花生/炒件</option>
-                    <option value="🍬">🍬 減糖糖品</option>
-                    <option value="🎁">🎁 手工禮盒</option>
-                    <option value="🛍️">🛍️ 伴手紙袋</option>
-                    <option value="📦">📦 箱裝貨運</option>
-                  </select>
+                    placeholder="請輸入 Emoji (如 🥜) 或 圖片路徑"
+                    className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-amber-850 focus:outline-hidden"
+                  />
                 </div>
               </div>
 
