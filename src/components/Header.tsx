@@ -66,17 +66,15 @@ export default function Header({ activeTab, setActiveTab, cartCount }: HeaderPro
               <span>訂單查詢</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab("admin")}
-              className={`flex items-center space-x-1.5 px-4.5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                activeTab === "admin"
-                  ? "bg-natural-brand text-[#FAF3EA] shadow-sm"
-                  : "text-natural-text-muted hover:text-natural-text-head hover:bg-natural-brand-subtle"
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>後台管理</span>
-            </button>
+            {activeTab === "admin" && (
+              <button
+                onClick={() => setActiveTab("admin")}
+                className="flex items-center space-x-1.5 px-4.5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer bg-natural-brand text-[#FAF3EA] shadow-sm"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>後台管理</span>
+              </button>
+            )}
           </nav>
 
         </div>
