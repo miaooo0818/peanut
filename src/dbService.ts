@@ -43,7 +43,11 @@ export async function seedProductsIfEmpty(): Promise<Product[]> {
       querySnapshot.forEach((document) => {
         list.push({ ...document.data(), id: document.id } as Product);
       });
-      return list;
+      return list.sort((a, b) => {
+        const orderA = a.sortOrder !== undefined ? a.sortOrder : 999;
+        const orderB = b.sortOrder !== undefined ? b.sortOrder : 999;
+        return orderA - orderB;
+      });
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, collectionName);
@@ -62,7 +66,11 @@ export async function getAllProducts(): Promise<Product[]> {
     querySnapshot.forEach((document) => {
       list.push({ ...document.data(), id: document.id } as Product);
     });
-    return list;
+    return list.sort((a, b) => {
+      const orderA = a.sortOrder !== undefined ? a.sortOrder : 999;
+      const orderB = b.sortOrder !== undefined ? b.sortOrder : 999;
+      return orderA - orderB;
+    });
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, collectionName);
     return [];
