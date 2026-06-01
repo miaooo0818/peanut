@@ -21,6 +21,18 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+html {
+  font-size: 112.5%; /* Zoom basic rem sizing up to 18px base for elevated readability */
+}
+
+.text-\[10px\] {
+  font-size: 0.75rem !important;
+}
+
+.text-\[11px\] {
+  font-size: 0.8125rem !important;
+}
+
 body {
   background-color: #FDFBF7;
   background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png');
