@@ -15,7 +15,7 @@ import {
   Lock, Key, LogOut, LayoutDashboard, ShoppingCart, 
   PackageCheck, Calendar, Settings, Plus, Edit2, 
   Trash2, X, Check, Save, Layers, AlertCircle, TrendingUp, Users, RefreshCw,
-  Download, FileSpreadsheet, ArrowUp, ArrowDown, Upload, Image
+  Download, FileSpreadsheet, ArrowUp, ArrowDown, Upload, Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -1476,7 +1476,7 @@ export default function AdminPanel() {
               <div className="border border-stone-200 rounded-xl p-4 bg-stone-50/50 space-y-3">
                 <div className="flex items-center justify-between border-b border-stone-150 pb-2">
                   <h4 className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                    <Image className="w-4 h-4 text-amber-850" />
+                    <ImageIcon className="w-4 h-4 text-amber-850" />
                     <span>商品主圖檔與外觀預覽 (可上傳本機照片、貼上雲端 URL、或使用 Emoji)</span>
                   </h4>
                   {isCompresingImage && (
