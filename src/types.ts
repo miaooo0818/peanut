@@ -36,7 +36,7 @@ export interface Order {
   customerPhone: string;
   customerAddress: string;
   notes?: string;
-  shippingMethod: "delivery" | "pickup";
+  shippingMethod: "delivery" | "pickup" | "store_pickup";
   paymentMethod: "cod" | "transfer";
   items: OrderItem[];
   totalAmount: number;
