@@ -95,6 +95,54 @@ export default function AdminPanel({
   const [orderQuery, setOrderQuery] = useState("");
   const [memberQuery, setMemberQuery] = useState("");
 
+  // Dashboard Date Range States
+  const [dbDatePreset, setDbDatePreset] = useState<"all" | "today" | "yesterday" | "past7" | "past30" | "thisMonth" | "custom">("all");
+  const [dbStartDate, setDbStartDate] = useState<string>("");
+  const [dbEndDate, setDbEndDate] = useState<string>("");
+
+  // Sync inputs with Date Presets
+  useEffect(() => {
+    if (dbDatePreset === "all") {
+      setDbStartDate("");
+      setDbEndDate("");
+      return;
+    }
+
+    const now = new Date();
+    const formatYMD = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    if (dbDatePreset === "today") {
+      const todayStr = formatYMD(now);
+      setDbStartDate(todayStr);
+      setDbEndDate(todayStr);
+    } else if (dbDatePreset === "yesterday") {
+      const yesterday = new Date();
+      yesterday.setDate(now.getDate() - 1);
+      const yesterdayStr = formatYMD(yesterday);
+      setDbStartDate(yesterdayStr);
+      setDbEndDate(yesterdayStr);
+    } else if (dbDatePreset === "past7") {
+      const past7 = new Date();
+      past7.setDate(now.getDate() - 6);
+      setDbStartDate(formatYMD(past7));
+      setDbEndDate(formatYMD(now));
+    } else if (dbDatePreset === "past30") {
+      const past30 = new Date();
+      past30.setDate(now.getDate() - 29);
+      setDbStartDate(formatYMD(past30));
+      setDbEndDate(formatYMD(now));
+    } else if (dbDatePreset === "thisMonth") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setDbStartDate(formatYMD(firstDay));
+      setDbEndDate(formatYMD(now));
+    }
+  }, [dbDatePreset]);
+
   // Product Edit Modal State
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -646,7 +694,11 @@ export default function AdminPanel({
     ];
 
     const rows = orders.map((o) => {
-      const shippingText = o.shippingMethod === "delivery" ? "宅配到府" : "自取";
+      const shippingText = o.shippingMethod === "delivery" 
+        ? "宅配到府" 
+        : o.shippingMethod === "store_pickup" 
+          ? "超商店到店" 
+          : "自取";
       const paymentText = o.paymentMethod === "cod" ? "貨到付款/自取付款" : "銀行匯款";
       const itemsDescription = o.items.map((it) => `${it.productName}(${it.specs}) x ${it.quantity} (單價:${it.priceAtPurchase})`).join("; ");
 
@@ -694,13 +746,43 @@ export default function AdminPanel({
     exportToCSV(`新洽記商行_不重複會員名冊_${timestamp}.csv`, headers, rows);
   };
 
-  // Math totals for dashboard stats
-  const totalSalesRevenue = orders
-    .filter((o) => o.status !== "已取消")
-    .reduce((sum, o) => sum + o.totalAmount, 0);
+  // Filtered orders specifically for dashboard metrics based on selected date range
+  const dashboardOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (!o.createdAt) return true;
+      const orderDate = new Date(o.createdAt);
+      if (isNaN(orderDate.getTime())) return true;
 
-  const processingOrdersCount = orders.filter((o) => o.status === "處理中").length;
-  const completedOrdersCount = orders.filter((o) => o.status === "已完成").length;
+      if (dbStartDate) {
+        const [sYear, sMonth, sDay] = dbStartDate.split("-").map(Number);
+        const startBoundary = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+        if (orderDate < startBoundary) return false;
+      }
+
+      if (dbEndDate) {
+        const [eYear, eMonth, eDay] = dbEndDate.split("-").map(Number);
+        const endBoundary = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
+        if (orderDate > endBoundary) return false;
+      }
+
+      return true;
+    });
+  }, [orders, dbStartDate, dbEndDate]);
+
+  // Math totals for dashboard stats
+  const totalSalesRevenue = useMemo(() => {
+    return dashboardOrders
+      .filter((o) => o.status !== "已取消")
+      .reduce((sum, o) => sum + o.totalAmount, 0);
+  }, [dashboardOrders]);
+
+  const processingOrdersCount = useMemo(() => {
+    return dashboardOrders.filter((o) => o.status === "處理中").length;
+  }, [dashboardOrders]);
+
+  const completedOrdersCount = useMemo(() => {
+    return dashboardOrders.filter((o) => o.status === "已完成").length;
+  }, [dashboardOrders]);
 
   // Render setup or authentication gates if necessary
   if (isSetup === null) {
@@ -919,6 +1001,111 @@ export default function AdminPanel({
           {activeAdminTab === "dashboard" && (
             <div className="space-y-6">
               
+              {/* Date Range Selector Widget */}
+              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4 shadow-3s">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="p-2 bg-amber-50 rounded-xl border border-amber-200 text-amber-850">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-natural-text-head font-serif">
+                        營運統計時間區間篩選
+                      </h3>
+                      <p className="text-[11px] text-natural-text-muted mt-0.5">
+                        自訂或選取常用區間，即時分析指定期間內的花生銷售額、各狀態訂單筆數及商品累計出貨量。
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Filter range statistics display bubble */}
+                  <div className="bg-white px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-xs flex items-center justify-between gap-3 text-xs self-start md:self-auto">
+                    <span className="text-stone-500 font-medium">區間內訂單筆數：</span>
+                    <span className="font-mono font-bold text-sm text-amber-850 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/50">
+                      {dashboardOrders.length} / {orders.length} 筆
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end pt-1 border-t border-stone-200/60">
+                  {/* Quick Preset Buttons (7 cols) */}
+                  <div className="lg:col-span-7 space-y-2">
+                    <span className="block text-[11px] font-bold text-stone-600">
+                      ❶ 快速選取常用區間
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { key: "all", label: "全部時間" },
+                        { key: "today", label: "今日統計" },
+                        { key: "yesterday", label: "昨日統計" },
+                        { key: "past7", label: "最近 7 天" },
+                        { key: "past30", label: "最近 30 天" },
+                        { key: "thisMonth", label: "當月累計" },
+                        { key: "custom", label: "自訂區間" },
+                      ].map((preset) => {
+                        const isActive = dbDatePreset === preset.key;
+                        return (
+                          <button
+                            key={preset.key}
+                            type="button"
+                            onClick={() => setDbDatePreset(preset.key as any)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                              isActive
+                                ? "bg-amber-850 text-white shadow-xs"
+                                : "bg-white text-stone-600 hover:text-stone-800 hover:bg-stone-50 border border-stone-200"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Date Picker Inputs (5 cols) */}
+                  <div className="lg:col-span-5 space-y-2">
+                    <span className="block text-[11px] font-bold text-stone-600">
+                      ❷ 細部調整日期起訖
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="date"
+                          value={dbStartDate}
+                          onChange={(e) => {
+                            setDbStartDate(e.target.value);
+                            setDbDatePreset("custom");
+                          }}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs text-stone-800 font-mono focus:outline-hidden focus:ring-1 focus:ring-amber-800 focus:border-amber-800 shadow-inner"
+                        />
+                      </div>
+                      <span className="text-stone-400 text-xs">至</span>
+                      <div className="relative flex-1">
+                        <input
+                          type="date"
+                          value={dbEndDate}
+                          onChange={(e) => {
+                            setDbEndDate(e.target.value);
+                            setDbDatePreset("custom");
+                          }}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs text-stone-800 font-mono focus:outline-hidden focus:ring-1 focus:ring-amber-800 focus:border-amber-800 shadow-inner"
+                        />
+                      </div>
+                      {(dbStartDate || dbEndDate || dbDatePreset !== "all") && (
+                        <button
+                          type="button"
+                          onClick={() => setDbDatePreset("all")}
+                          className="p-1.5 text-stone-400 hover:text-stone-600 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
+                          title="重設篩選條件"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Financial Stats Bento Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
@@ -930,18 +1117,22 @@ export default function AdminPanel({
                   <p className="text-2xl font-serif font-black text-amber-850">
                     {formatCurrency(totalSalesRevenue)}
                   </p>
-                  <span className="text-[10px] text-stone-500 block mt-1">包含所有已確認、備貨中、以及已完成訂單款項</span>
+                  <span className="text-[10px] text-stone-500 block mt-1">
+                    {dbDatePreset === "all" ? "包含所有已確認、備貨中、以及已完成訂單款項" : "所選日期區間內的有效銷售額"}
+                  </span>
                 </div>
 
                 <div className="bg-blue-50 hover:bg-blue-100/60 transition-colors border border-blue-100 p-5 rounded-2xl shadow-xs">
                   <div className="flex items-center justify-between text-blue-900 mb-2">
-                    <span className="text-xs font-bold tracking-wide">累計收訖訂單筆數</span>
+                    <span className="text-xs font-bold tracking-wide font-serif">收訖訂單筆數</span>
                     <PackageCheck className="w-4 h-4" />
                   </div>
                   <p className="text-2xl font-bold text-blue-800">
-                    {orders.length} 筆
+                    {dashboardOrders.length} 筆
                   </p>
-                  <span className="text-[10px] text-stone-500 block mt-1">本團購計畫目前收集到的所有客戶訂單</span>
+                  <span className="text-[10px] text-stone-500 block mt-1">
+                    {dbDatePreset === "all" ? "本團購計畫目前收集到的所有客戶訂單" : "此天數區間內收到的銷售訂單筆數"}
+                  </span>
                 </div>
 
                 <div className="bg-orange-50 hover:bg-orange-100/60 transition-colors border border-orange-100 p-5 rounded-2xl shadow-xs">
@@ -977,7 +1168,7 @@ export default function AdminPanel({
                 <div className="space-y-4">
                   {products.map((prod) => {
                     // Count total units ordered
-                    const totalUnits = orders
+                    const totalUnits = dashboardOrders
                       .filter((o) => o.status !== "已取消")
                       .flatMap((o) => o.items)
                       .filter((item) => item.productId === prod.id)
@@ -1133,8 +1324,19 @@ export default function AdminPanel({
                               {formatDate(order.createdAt)}
                             </span>
                           </td>
-                          <td className="p-3 space-y-0.5">
-                            <p className="font-bold text-stone-850">{order.customerName}</p>
+                          <td className="p-3 space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-bold text-stone-850">{order.customerName}</p>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
+                                order.shippingMethod === "delivery"
+                                  ? "bg-blue-50 text-blue-700 border-blue-100"
+                                  : order.shippingMethod === "store_pickup"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                    : "bg-stone-50 text-stone-700 border-stone-200"
+                              }`}>
+                                {order.shippingMethod === "delivery" ? "宅配" : order.shippingMethod === "store_pickup" ? "店到店" : "自取"}
+                              </span>
+                            </div>
                             <p className="text-stone-500">{order.customerPhone}</p>
                             <p className="text-[10px] text-stone-400 max-w-[180px] truncate" title={order.customerAddress}>
                               {order.customerAddress}
