@@ -11,7 +11,7 @@ import {
   deleteDoc
 } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType, sha256 } from "./firebase";
-import { Product, Order, OrderItem } from "./types";
+import { Product, Order, OrderItem, BrandConfig, DEFAULT_BRAND_CONFIG } from "./types";
 import { DEFAULT_PRODUCTS } from "./defaultProducts";
 
 // Helper to generate readable SNH order numbers: SNH-YYYYMMDD-XXXX
@@ -275,3 +275,36 @@ export async function verifyAdminPassword(password: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Get the brand configuration from Firestore. If not found, returns DEFAULT_BRAND_CONFIG.
+ */
+export async function getBrandConfig(): Promise<BrandConfig> {
+  const collectionName = "config";
+  const docId = "brand";
+  try {
+    const brandDoc = await getDoc(doc(db, collectionName, docId));
+    if (brandDoc.exists()) {
+      return { ...DEFAULT_BRAND_CONFIG, ...brandDoc.data() } as BrandConfig;
+    }
+    return DEFAULT_BRAND_CONFIG;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `${collectionName}/${docId}`);
+    return DEFAULT_BRAND_CONFIG;
+  }
+}
+
+/**
+ * Save brand configuration in Firestore.
+ */
+export async function saveBrandConfig(brandConfig: BrandConfig): Promise<void> {
+  const collectionName = "config";
+  const docId = "brand";
+  try {
+    await setDoc(doc(db, collectionName, docId), brandConfig);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${collectionName}/${docId}`);
+    throw error;
+  }
+}
+
