@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent } from "react";
 import { Product, CartItem, Order, OrderItem } from "../types";
 import { getProductUnitPrice, formatCurrency } from "../utils";
 import { createOrder } from "../dbService";
-import { ShoppingCart, Trash2, Calendar, ClipboardCheck, ArrowRight, CheckCircle2, ChevronRight, MapPin, Truck, Landmark } from "lucide-react";
+import { ShoppingCart, Trash2, Calendar, ClipboardCheck, ArrowRight, CheckCircle2, ChevronRight, MapPin, Truck, Landmark, Store } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -18,7 +18,7 @@ export default function Cart({ cartItems, onUpdateQuantity, onClearCart, onOrder
   // Input fields
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [shippingMethod, setShippingMethod] = useState<"delivery" | "pickup">("delivery");
+  const [shippingMethod, setShippingMethod] = useState<"delivery" | "pickup" | "store_pickup">("delivery");
   const [customerAddress, setCustomerAddress] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "transfer">("cod");
   const [notes, setNotes] = useState("");
@@ -79,13 +79,26 @@ export default function Cart({ cartItems, onUpdateQuantity, onClearCart, onOrder
       setErrorText("請輸入準確的收件地址！");
       return;
     }
+    if (shippingMethod === "store_pickup" && !customerAddress.trim()) {
+      setErrorText("請填寫全家便利商店店到店的「取件門市」與「6碼店號」！");
+      return;
+    }
+    if (shippingMethod === "store_pickup" && paymentMethod === "cod") {
+      setErrorText("全家店到店寄送方式不支援貨到付款，務必選用先「銀行匯款/轉帳」！");
+      return;
+    }
 
     try {
       setLoading(true);
       const orderData = {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
-        customerAddress: shippingMethod === "delivery" ? customerAddress.trim() : "到店自取 (台中市新洽記總行)",
+        customerAddress: 
+          shippingMethod === "delivery" 
+            ? customerAddress.trim() 
+            : shippingMethod === "store_pickup"
+              ? `全家店到店：${customerAddress.trim()}`
+              : "到店自取 (台中市新洽記總行)",
         shippingMethod,
         paymentMethod,
         notes: notes.trim(),
@@ -299,13 +312,21 @@ export default function Cart({ cartItems, onUpdateQuantity, onClearCart, onOrder
 
           {/* Shipping Method Selector */}
           <div>
-            <label className="block text-xs font-bold text-natural-text-head mb-2">
-              配送方式 <span className="text-red-600">*</span>
-            </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+              <label className="block text-xs font-bold text-natural-text-head">
+                配送方式 <span className="text-red-600">*</span>
+              </label>
+              <span className="text-[10px] text-amber-800 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+                💡 超商店到店限用「銀行匯款/轉帳」，不支援貨到付款
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="button"
-                onClick={() => setShippingMethod("delivery")}
+                onClick={() => {
+                  setShippingMethod("delivery");
+                  setCustomerAddress("");
+                }}
                 className={`py-2.5 rounded-xl border flex items-center justify-center space-x-1.5 text-xs font-bold transition-all cursor-pointer ${
                   shippingMethod === "delivery"
                     ? "bg-natural-brand text-white border-natural-brand-hover shadow-xs"
@@ -317,7 +338,26 @@ export default function Cart({ cartItems, onUpdateQuantity, onClearCart, onOrder
               </button>
               <button
                 type="button"
-                onClick={() => setShippingMethod("pickup")}
+                onClick={() => {
+                  setShippingMethod("store_pickup");
+                  setCustomerAddress("");
+                  setPaymentMethod("transfer"); // Automatically switch to transfer
+                }}
+                className={`py-2.5 rounded-xl border flex items-center justify-center space-x-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  shippingMethod === "store_pickup"
+                    ? "bg-natural-brand text-white border-natural-brand-hover shadow-xs"
+                    : "bg-white text-natural-text-head border-natural-border-light hover:bg-[#FAF3EA]"
+                }`}
+              >
+                <Store className="w-4 h-4" />
+                <span>超商店到店</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShippingMethod("pickup");
+                  setCustomerAddress("");
+                }}
                 className={`py-2.5 rounded-xl border flex items-center justify-center space-x-1.5 text-xs font-bold transition-all cursor-pointer ${
                   shippingMethod === "pickup"
                     ? "bg-natural-brand text-white border-natural-brand-hover shadow-xs"
@@ -330,56 +370,122 @@ export default function Cart({ cartItems, onUpdateQuantity, onClearCart, onOrder
             </div>
           </div>
 
-          {/* Delivery Address Field */}
-          {shippingMethod === "delivery" ? (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <label className="block text-xs font-bold text-natural-text-head mb-1.5" htmlFor="cust-addr">
-                收件地址 <span className="text-red-600">*</span>
-              </label>
-              <input
-                id="cust-addr"
-                type="text"
-                required={shippingMethod === "delivery"}
-                placeholder="請輸入精確縣市、道路、門牌號碼"
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-                className="w-full bg-white border border-natural-border-light rounded-xl px-4 py-2.5 text-sm focus:outline-hidden focus:ring-1 focus:ring-natural-brand focus:border-natural-brand transition-all font-medium"
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              className="bg-[#FAF3EA] rounded-xl p-3 border border-natural-border text-[11px] text-natural-text-head font-medium flex items-start gap-2"
-            >
-              <MapPin className="w-4 h-4 text-natural-brand shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-natural-text-head font-serif">自取總行：新洽記商行</p>
-                <p className="text-natural-text-muted text-[10px]">地址：台中市中區民族路142號 (古意老鋪)</p>
-                <p className="text-natural-text-muted text-[10px] mt-0.5">預約電話：(04) 2221-5088</p>
-              </div>
-            </motion.div>
-          )}
+          {/* Delivery Details conditionally shown */}
+          <AnimatePresence mode="wait">
+            {shippingMethod === "delivery" && (
+              <motion.div
+                key="delivery"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <label className="block text-xs font-bold text-natural-text-head mb-1.5" htmlFor="cust-addr">
+                  收件地址 <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="cust-addr"
+                  type="text"
+                  required={shippingMethod === "delivery"}
+                  placeholder="請輸入精確縣市、道路、門牌號碼"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  className="w-full bg-white border border-natural-border-light rounded-xl px-4 py-2.5 text-sm focus:outline-hidden focus:ring-1 focus:ring-natural-brand focus:border-natural-brand transition-all font-medium"
+                />
+              </motion.div>
+            )}
+
+            {shippingMethod === "store_pickup" && (
+              <motion.div
+                key="store_pickup"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="space-y-3 overflow-hidden text-xs"
+              >
+                {/* FamilyMart Map Selection Promotion Tool */}
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 space-y-2 text-stone-800">
+                  <div className="flex items-center space-x-1.5 text-emerald-850 font-bold font-serif">
+                    <Store className="w-4 h-4 text-emerald-700" />
+                    <span>全家便利商店 ── 店到店服務與店舖查詢</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800/90 leading-relaxed font-medium">
+                    請點選下方按鈕開啟全家官方門市地圖查詢您的取件店舖名稱與六碼店號。
+                  </p>
+                  <a
+                    href="https://fmec.famiport.com.tw/FP_Entrance/QueryShop"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-3 rounded-lg text-[11px] shadow-xs cursor-pointer transition-all hover:scale-[1.01]"
+                  >
+                    <span>🌐 開啟全家店到店選單/地圖</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                {/* Store details input box */}
+                <div>
+                  <label className="block text-xs font-bold text-natural-text-head mb-1.5" htmlFor="store-addr">
+                    全家取件門市名稱與六碼店號 <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    id="store-addr"
+                    type="text"
+                    required={shippingMethod === "store_pickup"}
+                    placeholder="例：全家台中中興店 (店號：012234)"
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    className="w-full bg-white border border-natural-border-light rounded-xl px-4 py-2.5 text-sm focus:outline-hidden focus:ring-1 focus:ring-natural-brand focus:border-natural-brand transition-all font-medium"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {shippingMethod === "pickup" && (
+              <motion.div
+                key="pickup"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="bg-[#FAF3EA] rounded-xl p-3 border border-natural-border text-[11px] text-natural-text-head font-medium flex items-start gap-2 overflow-hidden"
+              >
+                <MapPin className="w-4 h-4 text-natural-brand shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-natural-text-head font-serif">自取總行：新洽記商行</p>
+                  <p className="text-natural-text-muted text-[10px]">地址：台中市中區民族路142號 (古意老鋪)</p>
+                  <p className="text-natural-text-muted text-[10px] mt-0.5">預約電話：(04) 2221-5088</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Payment Method Selector */}
           <div>
-            <label className="block text-xs font-bold text-natural-text-head mb-2">
-              付款方式 <span className="text-red-600">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-natural-text-head">
+                付款方式 <span className="text-red-600">*</span>
+              </label>
+              {shippingMethod === "store_pickup" && (
+                <span className="text-[10px] text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-100 animate-pulse">
+                  ⚠️ 超商寄送限用匯款
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
+                disabled={shippingMethod === "store_pickup"}
                 onClick={() => setPaymentMethod("cod")}
-                className={`py-2.5 rounded-xl border flex items-center justify-center space-x-1.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`py-2.5 rounded-xl border flex items-center justify-center space-x-1.5 text-xs font-bold transition-all ${
                   paymentMethod === "cod"
                     ? "bg-natural-brand text-white border-natural-brand-hover shadow-xs"
                     : "bg-white text-natural-text-head border-natural-border-light hover:bg-[#FAF3EA]"
+                } ${
+                  shippingMethod === "store_pickup"
+                    ? "opacity-40 cursor-not-allowed bg-stone-50 border-stone-100 text-stone-400"
+                    : "cursor-pointer"
                 }`}
+                title={shippingMethod === "store_pickup" ? "超商店到店不開放貨到付款" : ""}
               >
                 <span>📦 貨到付款</span>
               </button>
@@ -396,6 +502,11 @@ export default function Cart({ cartItems, onUpdateQuantity, onClearCart, onOrder
                 <span>🏦 銀行匯款/轉帳</span>
               </button>
             </div>
+            {shippingMethod === "store_pickup" && (
+              <p className="text-[10px] text-amber-800 font-semibold mt-1.5 leading-relaxed bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
+                ※ 已選擇「超商店到店」，故付款方式鎖定為「銀行匯款/轉帳」。請於匯款後在下方備註欄提供您的轉帳後五碼，我們將最快為您核對並安排出貨。
+              </p>
+            )}
           </div>
 
           {/* Bank Wire Guidelines */}
