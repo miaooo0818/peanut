@@ -272,7 +272,7 @@ export default function OrderLookup() {
                                     <span>配送與領取細節：</span>
                                   </p>
                                   <p className="text-natural-text-muted font-medium">
-                                    方式：{order.shippingMethod === "delivery" ? "🚀 宅配到府" : "🏪 自行到總舖取貨"}
+                                    方式：{order.shippingMethod === "delivery" ? "🚀 宅配到府" : order.shippingMethod === "store_pickup" ? "🏪 超商店到店 (全家)" : "🏪 自行到總舖取貨"}
                                   </p>
                                   <p className="text-natural-text-muted font-medium">
                                     收件：{order.customerAddress}
