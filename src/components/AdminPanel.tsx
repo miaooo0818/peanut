@@ -7,9 +7,11 @@ import {
   updateOrderStatus,
   getAllProducts,
   saveProduct,
-  deleteProduct
+  deleteProduct,
+  getBrandConfig,
+  saveBrandConfig
 } from "../dbService";
-import { Order, Product, DiscountTier } from "../types";
+import { Order, Product, DiscountTier, BrandConfig, THEME_PRESETS, DEFAULT_BRAND_CONFIG } from "../types";
 import { formatCurrency, formatDate } from "../utils";
 import { 
   Lock, Key, LogOut, LayoutDashboard, ShoppingCart, 
@@ -51,9 +53,28 @@ function exportToCSV(filename: string, headers: string[], rows: string[][]) {
   document.body.removeChild(link);
 }
 
-export default function AdminPanel() {
+export default function AdminPanel({
+  brandConfig,
+  onBrandConfigChange
+}: {
+  brandConfig: BrandConfig;
+  onBrandConfigChange: (config: BrandConfig) => void;
+}) {
   const [isSetup, setIsSetup] = useState<boolean | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Brand Editing forms state 
+  const [brandForm, setBrandForm] = useState<BrandConfig>(brandConfig || DEFAULT_BRAND_CONFIG);
+  const [brandSaveMessage, setBrandSaveMessage] = useState("");
+  const [isSavingBrand, setIsSavingBrand] = useState(false);
+  const [isCompressingLogo, setIsCompressingLogo] = useState(false);
+  const [isCompressingBanner, setIsCompressingBanner] = useState(false);
+
+  useEffect(() => {
+    if (brandConfig) {
+      setBrandForm(brandConfig);
+    }
+  }, [brandConfig]);
   const [passwordInput, setPasswordInput] = useState("");
   const [setupPassword, setSetupPassword] = useState("");
   const [setupPasswordConfirm, setSetupPasswordConfirm] = useState("");
@@ -386,6 +407,115 @@ export default function AdminPanel() {
     } catch {
       setResetMessage("變更密碼失敗。");
     }
+  };
+
+  const handleSaveBrandForm = async (e: FormEvent) => {
+    e.preventDefault();
+    setBrandSaveMessage("");
+    setIsSavingBrand(true);
+    try {
+      await saveBrandConfig(brandForm);
+      onBrandConfigChange(brandForm);
+      setBrandSaveMessage("🎉 品牌與視覺設計系統已成功同步儲存！");
+      setTimeout(() => setBrandSaveMessage(""), 5050);
+    } catch (err) {
+      console.error(err);
+      setBrandSaveMessage("❌ 儲存品牌設定時發生錯誤！");
+    } finally {
+      setIsSavingBrand(false);
+    }
+  };
+
+  const handleBrandLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsCompressingLogo(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 120;
+        const MAX_HEIGHT = 120;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL("image/png", 0.9);
+          setBrandForm(prev => ({ ...prev, logoImage: compressedBase64 }));
+        }
+        setIsCompressingLogo(false);
+      };
+      img.onerror = () => {
+        setIsCompressingLogo(false);
+        alert("不支援或損毀的圖片格式！");
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBrandBannerUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsCompressingBanner(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 450;
+        let width = img.width;
+        let height = img.height;
+
+        if (width / height > MAX_WIDTH / MAX_HEIGHT) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
+          setBrandForm(prev => ({ ...prev, heroBannerImage: compressedBase64 }));
+        }
+        setIsCompressingBanner(false);
+      };
+      img.onerror = () => {
+        setIsCompressingBanner(false);
+        alert("不支援或損毀的圖片格式！");
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const addDiscountTier = () => {
@@ -1377,6 +1507,371 @@ export default function AdminPanel() {
                   >
                     <RefreshCw className="w-4 h-4" />
                     <span>確認重新設定新載密碼</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Box C: Visual Branding Identity System */}
+              <form onSubmit={handleSaveBrandForm} className="col-span-1 md:col-span-2 border border-stone-150 rounded-xl p-6 bg-stone-50/35 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-200 pb-3 gap-2">
+                  <div>
+                    <h3 className="text-base font-bold font-serif text-stone-850 flex items-center gap-1.5">
+                      <Settings className="w-5 h-5 text-amber-850" />
+                      <span>全站品牌 logo、文案及配色視覺介面管理</span>
+                    </h3>
+                    <p className="text-[11px] text-stone-550 mt-1">
+                      在此可自由設定品牌名稱、英文代號、Logo 圖像或單字標誌，並能切換精心設計的主題配色、客製首頁橫幅及頁尾文案。變更將即時同步套用至全站。
+                    </p>
+                  </div>
+                  {brandSaveMessage && (
+                    <div className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg animate-fade-in animate-pulse">
+                      {brandSaveMessage}
+                    </div>
+                  )}
+                </div>
+
+                {/* row 1: Theme Presets Selection with Real-time Colors indicators */}
+                <div className="space-y-3">
+                  <span className="block text-xs font-bold text-stone-800">
+                    ❶ 設定視覺風格美學 (套用預設配色主題)
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    {(Object.keys(THEME_PRESETS) as Array<keyof typeof THEME_PRESETS>).map((presetKey) => {
+                      const colors = THEME_PRESETS[presetKey];
+                      const isSelected = brandForm.themePreset === presetKey;
+                      const label = {
+                        classic: "原粹古法黃",
+                        emerald: "碧翠古茶綠",
+                        plum: "嫣紅山櫻色",
+                        royal: "儒雅古靛藍",
+                        cosmic: "曜黑金奢風"
+                      }[presetKey];
+                      
+                      return (
+                        <button
+                          key={presetKey}
+                          type="button"
+                          onClick={() => setBrandForm(prev => ({ ...prev, themePreset: presetKey }))}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all cursor-pointer text-center ${
+                            isSelected 
+                              ? "border-amber-800 bg-amber-50/30 ring-2 ring-amber-800/10" 
+                              : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"
+                          }`}
+                        >
+                          <span className={`text-xs font-bold mb-2 ${isSelected ? "text-amber-900" : "text-stone-700"}`}>
+                            {label}
+                          </span>
+                          
+                          {/* Palette dot representation */}
+                          <div className="flex gap-1">
+                            <span className="w-3.5 h-3.5 rounded-full border border-stone-200/50" style={{ backgroundColor: colors.brand }} title="主色" />
+                            <span className="w-3.5 h-3.5 rounded-full border border-stone-200/50" style={{ backgroundColor: colors.brandLight }} title="淡色背景" />
+                            <span className="w-3.5 h-3.5 rounded-full border border-stone-200/50" style={{ backgroundColor: colors.bg }} title="背景底色" />
+                            <span className="w-3.5 h-3.5 rounded-full border border-stone-200/50" style={{ backgroundColor: colors.textHead }} title="標題色" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <hr className="border-stone-200/60" />
+
+                {/* row 2: Logo and Branding metadata */}
+                <div className="space-y-4">
+                  <span className="block text-xs font-bold text-stone-800">
+                    ❷ 品牌專屬識別與首頁 Logo 設定
+                  </span>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Left 2 cols for texts */}
+                    <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-700 mb-1">
+                          品牌主名稱：
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={brandForm.brandName}
+                          onChange={(e) => setBrandForm(prev => ({ ...prev, brandName: e.target.value }))}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                          placeholder="例：新洽記商行"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-700 mb-1">
+                          英文標章 / 羅馬拼音標記：
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={brandForm.engName}
+                          onChange={(e) => setBrandForm(prev => ({ ...prev, engName: e.target.value }))}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                          placeholder="例：SIN-HIÁP-KÌ"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-stone-700 mb-1">
+                          品牌宗旨標語 (副標題)：
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={brandForm.slogan}
+                          onChange={(e) => setBrandForm(prev => ({ ...prev, slogan: e.target.value }))}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                          placeholder="例：• 經典花生。手工點心 •"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-700 mb-1">
+                          單字文字 Logo 符號：
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={4}
+                          value={brandForm.logoText}
+                          onChange={(e) => setBrandForm(prev => ({ ...prev, logoText: e.target.value }))}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                          placeholder="若不設置 Logo 圖像則顯示此中文字，例：洽"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Right col for Logo Image upload */}
+                    <div className="border border-stone-200 rounded-xl p-4 bg-stone-50/50 space-y-3 flex flex-col justify-between">
+                      <div>
+                        <span className="block text-xs font-semibold text-stone-700 mb-1.5">
+                          上傳圓形 Logo 圖檔：
+                        </span>
+                        
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-4">
+                            <div className="relative">
+                              {brandForm.logoImage ? (
+                                <img
+                                  src={brandForm.logoImage}
+                                  alt="Logo"
+                                  className="w-16 h-16 rounded-full object-cover border border-stone-300 shadow-xs"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="w-16 h-16 bg-stone-200 text-stone-600 rounded-full flex items-center justify-center font-bold text-2xl border border-stone-300 shadow-inner select-none animate-pulse">
+                                  {brandForm.logoText || "洽"}
+                                </div>
+                              )}
+                              {isCompressingLogo && (
+                                <div className="absolute inset-0 bg-stone-900/40 rounded-full flex items-center justify-center">
+                                  <RefreshCw className="animate-spin w-5 h-5 text-white" />
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex flex-col gap-1.5">
+                              <label className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 border border-stone-350 rounded-lg text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 transition-all">
+                                <Upload className="w-3.5 h-3.5" />
+                                選擇本機照片
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={handleBrandLogoUpload}
+                                />
+                              </label>
+                              {brandForm.logoImage && (
+                                <button
+                                  type="button"
+                                  onClick={() => setBrandForm(prev => ({ ...prev, logoImage: "" }))}
+                                  className="px-3 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                                >
+                                  重設為文字標誌
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-stone-400 leading-normal">
+                        ＊若有上傳 Logo 圖檔則以此顯現；若無上傳，將以圓形底色套印上方設定的「文字標誌」。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-stone-200/60" />
+
+                {/* row 3: Hero section (main banner) styling */}
+                <div className="space-y-4">
+                  <span className="block text-xs font-bold text-stone-800">
+                    ❸ 購物首頁首屏焦點橫幅 (Hero Banner)
+                  </span>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2 space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-700 mb-1">
+                          橫幅徽章標籤文案：
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={brandForm.heroBadge}
+                          onChange={(e) => setBrandForm(prev => ({ ...prev, heroBadge: e.target.value }))}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                          placeholder="例：🥜 經典老舖 ‧ 世代相傳"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-700 mb-1">
+                          橫幅大標題：
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={brandForm.heroTitle}
+                          onChange={(e) => setBrandForm(prev => ({ ...prev, heroTitle: e.target.value }))}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                          placeholder="例：古早風味，純手作焙炒。"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-700 mb-1">
+                          橫幅故事描述副標題 (段落)：
+                        </label>
+                        <textarea
+                          rows={3}
+                          required
+                          value={brandForm.heroSubtitle}
+                          onChange={(e) => setBrandForm(prev => ({ ...prev, heroSubtitle: e.target.value }))}
+                          className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800 leading-relaxed"
+                          placeholder="介紹商行的焙炒理念與原料精神..."
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border border-stone-200 rounded-xl p-4 bg-stone-50/50 space-y-4 flex flex-col justify-between">
+                      <div>
+                        <span className="block text-xs font-semibold text-stone-700 mb-1">
+                          背景橫幅影像背景圖：
+                        </span>
+                        
+                        <div className="space-y-3">
+                          <div className="relative border border-stone-300 rounded-lg overflow-hidden h-24 bg-stone-100 flex items-center justify-center">
+                            {brandForm.heroBannerImage ? (
+                              <img
+                                src={brandForm.heroBannerImage}
+                                alt="Banner Background"
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-gradient-to-br from-amber-700 via-amber-800 to-[#4A3728] flex items-center justify-center">
+                                <span className="text-[10px] text-white/80 font-bold">預設漸變背景</span>
+                              </div>
+                            )}
+                            {isCompressingBanner && (
+                              <div className="absolute inset-0 bg-stone-900/50 flex items-center justify-center">
+                                <RefreshCw className="animate-spin w-5 h-5 text-white" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <label className="flex-1 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 border border-stone-350 rounded-lg text-[10px] font-bold cursor-pointer inline-flex items-center justify-center gap-1 transition-all">
+                              <Upload className="w-3.5 h-3.5" />
+                              上傳背景照片
+                              <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={handleBrandBannerUpload}
+                                />
+                            </label>
+                            {brandForm.heroBannerImage && (
+                              <button
+                                type="button"
+                                onClick={() => setBrandForm(prev => ({ ...prev, heroBannerImage: "" }))}
+                                className="px-2 py-1 bg-stone-200 hover:bg-stone-300 text-stone-600 rounded-lg text-[10px] font-bold cursor-pointer transition-all"
+                              >
+                                恢復預設
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-stone-400 leading-normal">
+                        ＊若有上傳則以照片橫幅顯示，適合尺寸為比例較寬的長方形 (1200x450)。若無設置，將套用和主題配色一致的高級漸層和暗語。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-stone-200/60" />
+
+                {/* row 4: Footer Copyright text */}
+                <div className="space-y-4">
+                  <span className="block text-xs font-bold text-stone-800">
+                    ❹ 網頁頁尾資訊文案設定 (Footer Copyright)
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1">
+                        頁尾版權宣告文字：
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={brandForm.footerCopyright}
+                        onChange={(e) => setBrandForm(prev => ({ ...prev, footerCopyright: e.target.value }))}
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                        placeholder="例：新洽記商行 © 2026 SIN-HIÁP-KÌ. All Rights Reserved."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1">
+                        頁尾備註與技術支援文案：
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={brandForm.footerSubtitle}
+                        onChange={(e) => setBrandForm(prev => ({ ...prev, footerSubtitle: e.target.value }))}
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-800"
+                        placeholder="例：台中中區古法花生糕點名舖 ‧ 系統雲端由 Firestore 數據永固驅動"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-stone-200/60" />
+
+                {/* Submit row */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSavingBrand || isCompressingLogo || isCompressingBanner}
+                    className="px-6 py-2.5 bg-amber-850 hover:bg-amber-900 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:bg-stone-300 disabled:cursor-not-allowed"
+                  >
+                    {isSavingBrand ? (
+                      <>
+                        <RefreshCw className="animate-spin w-4 h-4" />
+                        <span>同步品牌中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4.5 h-4.5" />
+                        <span>儲存品牌與視覺全域變更</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
