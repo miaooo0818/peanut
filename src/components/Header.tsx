@@ -1,12 +1,14 @@
 import { ShoppingBag, Search, ShieldCheck } from "lucide-react";
+import { BrandConfig } from "../types";
 
 interface HeaderProps {
   activeTab: "shop" | "lookup" | "admin";
   setActiveTab: (tab: "shop" | "lookup" | "admin") => void;
   cartCount: number;
+  brandConfig: BrandConfig;
 }
 
-export default function Header({ activeTab, setActiveTab, cartCount }: HeaderProps) {
+export default function Header({ activeTab, setActiveTab, cartCount, brandConfig }: HeaderProps) {
   return (
     <header className="bg-natural-brand-light/95 backdrop-blur border-b border-natural-border sticky top-0 z-40 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -14,24 +16,34 @@ export default function Header({ activeTab, setActiveTab, cartCount }: HeaderPro
           
           {/* Logo & Calligraphy Branding */}
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-natural-brand rounded-full flex items-center justify-center text-white font-serif text-2xl font-black shadow-sm select-none shrink-0">
-              洽
-            </div>
+            {brandConfig.logoImage ? (
+              <img
+                src={brandConfig.logoImage}
+                alt={brandConfig.brandName}
+                className="w-12 h-12 rounded-full object-cover shadow-sm select-none shrink-0 border border-natural-border/50"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-12 h-12 bg-natural-brand rounded-full flex items-center justify-center text-white font-serif text-2xl font-black shadow-sm select-none shrink-0 border border-natural-border/30">
+                {brandConfig.logoText || "洽"}
+              </div>
+            )}
             
             <div className="flex flex-col">
               <h1 className="text-2xl sm:text-3xl font-serif font-bold text-natural-text-head tracking-wider">
-                新洽記商行
+                {brandConfig.brandName}
               </h1>
               <div className="flex items-center space-x-2 mt-0.5">
                 <span className="text-xs font-mono font-bold text-natural-brand bg-natural-brand-subtle px-1.5 py-0.5 rounded uppercase border border-natural-border/30 tracking-widest">
-                  SIN-HIÁP-KÌ
+                  {brandConfig.engName}
                 </span>
                 <span className="text-[10px] text-natural-text-muted font-sans font-semibold">
-                  • 經典花生。手工點心 •
+                  {brandConfig.slogan}
                 </span>
               </div>
             </div>
           </div>
+
 
           {/* Navigation Control Tabs */}
           <nav className="flex items-center space-x-1 sm:space-x-2 bg-natural-border-light/40 p-1 rounded-full self-start md:self-auto border border-natural-border/30">
