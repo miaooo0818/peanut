@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Product, CartItem, Order } from "./types";
-import { seedProductsIfEmpty } from "./dbService";
+import { Product, CartItem, Order, BrandConfig, DEFAULT_BRAND_CONFIG, THEME_PRESETS } from "./types";
+import { seedProductsIfEmpty, getBrandConfig } from "./dbService";
 import Header from "./components/Header";
 import ProductCard from "./components/ProductCard";
 import Cart from "./components/Cart";
@@ -18,6 +18,46 @@ export default function App() {
 
   // Success view tracking
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
+
+  const [brandConfig, setBrandConfig] = useState<BrandConfig>(DEFAULT_BRAND_CONFIG);
+
+  // Load Brand Config from DB
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const config = await getBrandConfig();
+        setBrandConfig(config);
+      } catch (err) {
+        console.error("Error loading brand configuration:", err);
+      }
+    }
+    loadConfig();
+  }, []);
+
+  // Inject Custom Styling Preset Colors dynamically
+  useEffect(() => {
+    if (!brandConfig) return;
+    const preset = brandConfig.themePreset || "classic";
+    const colors = THEME_PRESETS[preset];
+    if (colors) {
+      document.documentElement.style.setProperty("--color-natural-bg", colors.bg);
+      document.documentElement.style.setProperty("--color-natural-brand", colors.brand);
+      document.documentElement.style.setProperty("--color-natural-brand-hover", colors.brandHover);
+      document.documentElement.style.setProperty("--color-natural-brand-dark", colors.brandDark);
+      document.documentElement.style.setProperty("--color-natural-brand-light", colors.brandLight);
+      document.documentElement.style.setProperty("--color-natural-brand-subtle", colors.brandSubtle);
+      document.documentElement.style.setProperty("--color-natural-border", colors.border);
+      document.documentElement.style.setProperty("--color-natural-border-light", colors.borderLight);
+      document.documentElement.style.setProperty("--color-natural-text-main", colors.textMain);
+      document.documentElement.style.setProperty("--color-natural-text-head", colors.textHead);
+      document.documentElement.style.setProperty("--color-natural-text-muted", colors.textMuted);
+      document.documentElement.style.setProperty("--color-natural-tab-active", colors.tabActive);
+      document.documentElement.style.setProperty("--color-natural-tab-hover", colors.tabHover);
+      
+      document.body.style.backgroundColor = colors.bg;
+      document.body.style.color = colors.textMain;
+    }
+  }, [brandConfig.themePreset]);
 
   // Simple Hidden Routing Effect for /admin
   useEffect(() => {
@@ -108,6 +148,7 @@ export default function App() {
           }
         }}
         cartCount={totalCartCount}
+        brandConfig={brandConfig}
       />
 
       {/* Main Container Workspace */}
@@ -216,24 +257,29 @@ export default function App() {
               ) : (
                 <>
                   {/* Hero banner visual layout */}
-                  <div className="relative rounded-3xl bg-natural-brand-dark border-4 border-natural-border-light p-8 sm:p-12 text-[#FAF3EA] overflow-hidden shadow-sm">
+                  <div className="relative rounded-3xl bg-natural-brand-dark border-4 border-natural-border-light p-8 sm:p-12 text-[#FAF3EA] overflow-hidden shadow-sm min-h-[220px] flex items-center">
                     {/* Background decorations */}
-                    <div className="absolute top-0 bottom-0 right-0 left-0 bg-gradient-to-br from-natural-brand via-natural-brand-dark to-[#4A3728] -z-10" />
+                    {brandConfig.heroBannerImage ? (
+                      <div 
+                        className="absolute inset-0 bg-cover bg-center -z-10 brightness-50" 
+                        style={{ backgroundImage: `url(${brandConfig.heroBannerImage})` }}
+                      />
+                    ) : (
+                      <div className="absolute top-0 bottom-0 right-0 left-0 bg-gradient-to-br from-natural-brand via-natural-brand-dark to-[#4A3728] -z-10" />
+                    )}
                     <div className="absolute right-0 bottom-0 text-9xl opacity-10 font-black font-serif pointer-events-none select-none">
-                      洽
+                      {brandConfig.logoText || "洽"}
                     </div>
                     
-                    <div className="max-w-2xl space-y-4">
+                    <div className="max-w-2xl space-y-4 relative z-10">
                       <span className="inline-flex items-center space-x-1 px-3 py-1 bg-natural-brand border border-natural-border rounded-full text-xs font-semibold text-[#FAF3EA] tracking-wider">
-                        🥜 經典老舖 ‧ 世代相傳
+                        {brandConfig.heroBadge}
                       </span>
-                      <h2 className="text-3xl sm:text-4xl font-serif font-bold tracking-tight">
-                        古早風味，純手作焙炒。
+                      <h2 className="text-3xl sm:text-4xl font-serif font-bold tracking-tight text-white drop-shadow-md">
+                        {brandConfig.heroTitle}
                       </h2>
-                      <p className="text-xs sm:text-sm text-natural-brand-light/95 leading-relaxed">
-                        新洽記商行堅持選用頂級金鑽紅仁花生與純淨大麥芽糖。
-                        古法細細慢火低溫焙炒，造就每一顆飽滿充實的香郁花生點心，
-                        滿滿的真材實料，送禮自用兩相宜。
+                      <p className="text-xs sm:text-sm text-natural-brand-light/95 leading-relaxed drop-shadow-sm font-medium whitespace-pre-wrap">
+                        {brandConfig.heroSubtitle}
                       </p>
                     </div>
                   </div>
@@ -314,7 +360,10 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
             >
-              <AdminPanel />
+              <AdminPanel
+                brandConfig={brandConfig}
+                onBrandConfigChange={(newConfig) => setBrandConfig(newConfig)}
+              />
             </motion.div>
           )}
 
@@ -324,8 +373,8 @@ export default function App() {
       {/* Footer information */}
       <footer className="bg-natural-brand-subtle border-t border-natural-border/40 py-6 text-center text-xs text-natural-text-muted">
         <div className="max-w-7xl mx-auto px-4 space-y-1">
-          <p className="font-serif">新洽記商行 © 2026 SIN-HIÁP-KÌ. All Rights Reserved.</p>
-          <p className="font-mono text-[10px]">台中中區古法花生糕點名舖 ‧ 系統雲端由 Firestore 數據永固驅動</p>
+          <p className="font-serif">{brandConfig.footerCopyright}</p>
+          <p className="font-mono text-[10px]">{brandConfig.footerSubtitle}</p>
         </div>
       </footer>
 
